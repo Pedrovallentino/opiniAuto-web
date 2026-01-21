@@ -28,30 +28,79 @@ export function CarDetails() {
     try {
       // Try to get car details
       const carRes = await api.get(`/cars/${id}`);
-      setCar(carRes.data);
+      
+      const backendCar = carRes.data.car;
+      const mappedCar: Car = {
+        id: backendCar.id,
+        brand: backendCar.marca,
+        model: backendCar.modelo,
+        year: backendCar.ano,
+        image_url: backendCar.imagem,
+        active: backendCar.status === 'ATIVO',
+        created_at: backendCar.criadoEm,
+        category: backendCar.categoria,
+        engineType: backendCar.tipoMotorizacao
+      };
+      
+      setCar(mappedCar);
 
       // Try to get reviews. Check if they are in carRes or need separate fetch
-      if (carRes.data.reviews && Array.isArray(carRes.data.reviews)) {
-        setReviews(carRes.data.reviews);
+      if (backendCar.avaliacao && Array.isArray(backendCar.avaliacao) && backendCar.avaliacao.length > 0) {
+        console.log('Avaliações já incluídas na resposta:', backendCar.avaliacao);
+        const mappedReviews: Review[] = backendCar.avaliacao.map((review: any) => ({
+          id: review.id,
+          rating_performance: review.notaDesempenho,
+          rating_comfort: review.notaConforto,
+          rating_consumption: review.notaConsumo,
+          rating_design: review.notaDesign,
+          rating_cost_benefit: review.notaCustoBeneficio,
+          comment: review.comentario,
+          user_id: review.usuarioId,
+          car_id: review.carroId,
+          created_at: review.criadoEm,
+          user: review.usuario ? {
+            id: review.usuario.id,
+            name: review.usuario.nome,
+            email: review.usuario.email
+          } : undefined
+        }));
+        setReviews(mappedReviews);
       } else {
         // Fallback to fetch reviews separately
-        try {
-          const reviewsRes = await api.get(`/cars/${id}/reviews`);
-          setReviews(reviewsRes.data);
+          try {
+          const reviewsRes = await api.get(`/cars/${id}/evaluations`);
+          console.log('Avaliações recebidas (fallback):', reviewsRes.data.evaluations);
+          
+          const mappedReviews: Review[] = reviewsRes.data.evaluations.map((review: any) => ({
+            id: review.id,
+            rating_performance: review.notaDesempenho,
+            rating_comfort: review.notaConforto,
+            rating_consumption: review.notaConsumo,
+            rating_design: review.notaDesign,
+            rating_cost_benefit: review.notaCustoBeneficio,
+            comment: review.comentario,
+            user_id: review.usuarioId,
+            car_id: review.carroId,
+            created_at: review.criadoEm,
+            user: review.usuario ? {
+              id: review.usuario.id,
+              name: review.usuario.nome,
+              email: review.usuario.email
+            } : undefined
+          }));
+          
+          setReviews(mappedReviews);
         } catch (err) {
-            // If endpoint is /reviews?car_id=...
-            try {
-                 const reviewsRes2 = await api.get(`/reviews?car_id=${id}`);
-                 setReviews(reviewsRes2.data);
-            } catch (ignored) {
-                 // Assume no reviews or failed to fetch
-                 console.log("Could not fetch reviews separately");
-            }
+            console.log("Could not fetch reviews separately");
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error("Erro ao carregar detalhes do carro.");
+      if (error.response?.status === 400 || error.response?.status === 404) {
+        toast.error("Carro não encontrado ou ID inválido.");
+      } else {
+        toast.error("Erro ao carregar detalhes do carro.");
+      }
       navigate('/');
     } finally {
       setIsLoading(false);
@@ -61,9 +110,12 @@ export function CarDetails() {
   const handleDeleteReview = async (reviewId: string) => {
     if (!confirm('Tem certeza que deseja excluir esta avaliação?')) return;
     try {
-      await api.delete(`/reviews/${reviewId}`);
-      toast.success('Avaliação excluída.');
-      fetchCarData();
+      // Endpoint correto para exclusão de avaliação
+      await api.delete(`/evaluations/${reviewId}`);
+      toast.success('Comentário excluído com sucesso!');
+      
+      // Atualiza a lista removendo o item excluído
+      setReviews((prev) => prev.filter((r) => r.id !== reviewId));
     } catch (error) {
       toast.error('Erro ao excluir avaliação.');
     }
@@ -76,6 +128,24 @@ export function CarDetails() {
       if (!reviews.length) return 0;
       return reviews.reduce((acc, r) => acc + (Number(r[key]) || 0), 0) / reviews.length;
   };
+
+  const calculateOverallAverage = () => {
+    if (!reviews.length) return 0;
+    const sum = reviews.reduce((acc, review) => {
+      const reviewAvg = (
+        Number(review.rating_performance) +
+        Number(review.rating_comfort) +
+        Number(review.rating_consumption) +
+        Number(review.rating_design) +
+        Number(review.rating_cost_benefit)
+      ) / 5;
+      return acc + reviewAvg;
+    }, 0);
+    return sum / reviews.length;
+  };
+
+  const overallAverage = calculateOverallAverage();
+  console.log('Overall Average:', overallAverage);
 
   const metrics = [
      { label: 'Desempenho', value: calculateMetric('rating_performance') },
@@ -100,13 +170,17 @@ export function CarDetails() {
            <div className="p-6 md:w-1/2 space-y-6">
              <div>
                <h1 className="text-3xl font-bold text-gray-900">{car.brand} {car.model}</h1>
-               <p className="text-xl text-gray-500">{car.year}</p>
+               <div className="flex flex-col text-gray-500 mt-2 gap-1">
+                 <span className="text-xl">Ano: {car.year}</span>
+                 {car.category && <span>Categoria: {car.category}</span>}
+                 {car.engineType && <span>Motorização: {car.engineType}</span>}
+               </div>
              </div>
              
              <div className="flex items-center gap-3">
-               <span className="text-4xl font-bold text-gray-900">{car.average_rating ? Number(car.average_rating).toFixed(1) : '0.0'}</span>
+               <span className="text-4xl font-bold text-gray-900">{overallAverage.toFixed(1)}</span>
                <div className="flex flex-col">
-                   <StarRating rating={car.average_rating || 0} size="lg" />
+                   <StarRating rating={overallAverage} size="lg" />
                    <span className="text-sm text-gray-500">{reviews.length} avaliações</span>
                </div>
              </div>

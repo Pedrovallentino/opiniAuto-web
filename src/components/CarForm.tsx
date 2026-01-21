@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,9 @@ const carSchema = z.object({
   brand: z.string().min(1, 'Marca é obrigatória'),
   model: z.string().min(1, 'Modelo é obrigatório'),
   year: z.string().min(4, "Ano inválido"),
-  image: z.any().optional(),
+  category: z.string().min(1, 'Categoria é obrigatória'),
+  engineType: z.string().min(1, 'Motorização é obrigatória'),
+  imageUrl: z.string().url('URL da imagem inválida'),
 });
 
 type CarFormData = z.infer<typeof carSchema>;
@@ -25,43 +27,57 @@ interface CarFormProps {
 
 export function CarForm({ car, onSuccess, onCancel }: CarFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm<CarFormData>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<CarFormData>({
     resolver: zodResolver(carSchema),
     defaultValues: {
-      brand: car?.brand || '',
-      model: car?.model || '',
-      year: String(car?.year || new Date().getFullYear()),
+      brand: '',
+      model: '',
+      year: new Date().getFullYear().toString(),
+      category: '',
+      engineType: '',
+      imageUrl: '',
     }
   });
+
+  useEffect(() => {
+    if (car) {
+        // We might not have category/engineType in the frontend Car type yet?
+        // Let's check the Car type in types/index.ts. 
+        // It doesn't have category/engineType. 
+        // We should probably update the Car type first, or just accept that we might not be able to pre-fill them if they aren't in the object.
+        // However, the backend returns them. Let's assume for now we might need to fetch details or just leave empty if missing.
+        // Wait, the AdminDashboard calls `api.get('/cars')` (listActive).
+        // Let's check `list-active.ts` controller response.
+        
+        setValue('brand', car.brand);
+        setValue('model', car.model);
+        setValue('year', String(car.year));
+        setValue('imageUrl', car.image_url);
+        
+        setValue('category', car.category || 'Sedan'); 
+        setValue('engineType', car.engineType || 'Flex');
+    }
+  }, [car, setValue]);
 
   const onSubmit = async (data: CarFormData) => {
     setIsSubmitting(true);
     try {
-      const formData = new FormData();
-      formData.append('brand', data.brand);
-      formData.append('model', data.model);
-      formData.append('year', data.year);
-      
-      if (data.image && data.image[0]) {
-        formData.append('image', data.image[0]);
-      }
+      const payload = {
+        marca: data.brand,
+        modelo: data.model,
+        ano: parseInt(data.year),
+        categoria: data.category,
+        tipoMotorizacao: data.engineType,
+        imagem: data.imageUrl,
+      };
 
       if (car) {
         // Edit
-        await api.put(`/cars/${car.id}`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        await api.put(`/cars/${car.id}`, payload);
         toast.success('Carro atualizado com sucesso!');
       } else {
         // Create
-        if (!data.image || !data.image.length) {
-            toast.error("Imagem é obrigatória para criar um carro.");
-            setIsSubmitting(false);
-            return;
-        }
-        await api.post('/cars', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        await api.post('/cars', payload);
         toast.success('Carro criado com sucesso!');
       }
       onSuccess();
@@ -75,29 +91,44 @@ export function CarForm({ car, onSuccess, onCancel }: CarFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+            <label className="block text-sm font-medium mb-1">Marca</label>
+            <Input {...register('brand')} placeholder="Ex: Toyota" />
+            {errors.brand && <span className="text-red-500 text-sm">{errors.brand.message}</span>}
+        </div>
+        
+        <div>
+            <label className="block text-sm font-medium mb-1">Modelo</label>
+            <Input {...register('model')} placeholder="Ex: Corolla" />
+            {errors.model && <span className="text-red-500 text-sm">{errors.model.message}</span>}
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+            <label className="block text-sm font-medium mb-1">Ano</label>
+            <Input {...register('year')} type="number" placeholder="2024" />
+            {errors.year && <span className="text-red-500 text-sm">{errors.year.message}</span>}
+        </div>
+
+        <div>
+            <label className="block text-sm font-medium mb-1">Categoria</label>
+            <Input {...register('category')} placeholder="Ex: SUV, Sedan" />
+            {errors.category && <span className="text-red-500 text-sm">{errors.category.message}</span>}
+        </div>
+      </div>
+
       <div>
-        <label className="block text-sm font-medium mb-1">Marca</label>
-        <Input {...register('brand')} placeholder="Ex: Toyota" />
-        {errors.brand && <span className="text-red-500 text-sm">{errors.brand.message}</span>}
+        <label className="block text-sm font-medium mb-1">Motorização</label>
+        <Input {...register('engineType')} placeholder="Ex: 2.0 Híbrido" />
+        {errors.engineType && <span className="text-red-500 text-sm">{errors.engineType.message}</span>}
       </div>
       
       <div>
-        <label className="block text-sm font-medium mb-1">Modelo</label>
-        <Input {...register('model')} placeholder="Ex: Corolla" />
-        {errors.model && <span className="text-red-500 text-sm">{errors.model.message}</span>}
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium mb-1">Ano</label>
-        <Input {...register('year')} type="number" placeholder="2024" />
-        {errors.year && <span className="text-red-500 text-sm">{errors.year.message}</span>}
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium mb-1">Imagem do Carro</label>
-        <Input {...register('image')} type="file" accept="image/*" className="cursor-pointer" />
-        {errors.image && <span className="text-red-500 text-sm">{String(errors.image.message)}</span>}
-        {car && <p className="text-xs text-gray-500 mt-1">Deixe em branco para manter a imagem atual.</p>}
+        <label className="block text-sm font-medium mb-1">URL da Imagem</label>
+        <Input {...register('imageUrl')} placeholder="https://exemplo.com/carro.jpg" />
+        {errors.imageUrl && <span className="text-red-500 text-sm">{errors.imageUrl.message}</span>}
       </div>
 
       <div className="flex justify-end gap-2 pt-4">

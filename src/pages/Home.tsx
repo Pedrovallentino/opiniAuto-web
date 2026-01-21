@@ -17,10 +17,21 @@ export function Home() {
   const fetchCars = async () => {
     try {
       const response = await api.get('/cars');
-      // Filter only active cars if backend returns all (though prompt says list active)
-      const activeCars = Array.isArray(response.data) 
-        ? response.data.filter((c: Car) => c.active) 
-        : [];
+      
+      // Adapt backend data (Portuguese) to frontend model (English)
+      const backendCars = response.data.cars || [];
+      
+      const mappedCars: Car[] = backendCars.map((item: any) => ({
+        id: item.id,
+        brand: item.marca,
+        model: item.modelo,
+        year: item.ano,
+        image_url: item.imagem,
+        active: item.status === 'ATIVO',
+        created_at: item.criadoEm
+      }));
+
+      const activeCars = mappedCars.filter(c => c.active);
       setCars(activeCars);
     } catch (error) {
       console.error(error);

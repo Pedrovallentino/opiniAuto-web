@@ -31,10 +31,11 @@ export function Register() {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      await api.post('/auth/register', {
-        name: data.name,
+      await api.post('/users', {
+        nome: data.name,
         email: data.email,
-        password: data.password,
+        senha: data.password,
+        perfil: 'USER',
       });
       toast.success('Cadastro realizado com sucesso! Faça login.');
       navigate('/login');

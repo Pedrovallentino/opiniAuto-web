@@ -28,9 +28,21 @@ export function Login() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const response = await api.post('/auth/login', data);
+      const response = await api.post('/sessions', {
+        email: data.email,
+        senha: data.password,
+      });
       const { token, user } = response.data;
-      login(token, user);
+      
+      // Map backend user to frontend User type
+      const mappedUser = {
+        id: user.id,
+        name: user.nome,
+        email: user.email,
+        role: user.perfil,
+      };
+
+      login(token, mappedUser);
       toast.success('Login realizado com sucesso!');
       navigate('/');
     } catch (error) {

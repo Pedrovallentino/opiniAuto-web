@@ -14,6 +14,8 @@ export interface Car {
   average_rating?: number;
   active: boolean;
   created_at?: string;
+  category?: string;
+  engineType?: string;
 }
 
 export interface Review {

@@ -41,13 +41,24 @@ export function ReviewForm({ carId, onSuccess, onCancel }: ReviewFormProps) {
   const onSubmit = async (data: ReviewFormData) => {
     setIsSubmitting(true);
     try {
-      // POST /reviews usually takes car_id in body or URL
-      await api.post('/reviews', { ...data, car_id: carId });
+      // POST /cars/:carId/evaluations
+      await api.post(`/cars/${carId}/evaluations`, { 
+        notaDesempenho: data.rating_performance,
+        notaConforto: data.rating_comfort,
+        notaConsumo: data.rating_consumption,
+        notaDesign: data.rating_design,
+        notaCustoBeneficio: data.rating_cost_benefit,
+        comentario: data.comment
+      });
       toast.success('Avaliação enviada com sucesso!');
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('Erro ao enviar avaliação. Verifique se você já não avaliou este carro.');
+      if (error.response?.status === 409) {
+        toast.error('Você já avaliou este carro.');
+      } else {
+        toast.error('Erro ao enviar avaliação. Tente novamente.');
+      }
     } finally {
       setIsSubmitting(false);
     }

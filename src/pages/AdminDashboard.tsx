@@ -19,8 +19,22 @@ export function AdminDashboard() {
 
   const fetchCars = async () => {
     try {
-      const response = await api.get('/cars');
-      setCars(response.data);
+      const response = await api.get('/cars/all');
+      
+      const backendCars = response.data.cars || [];
+      const mappedCars: Car[] = backendCars.map((item: any) => ({
+        id: item.id,
+        brand: item.marca,
+        model: item.modelo,
+        year: item.ano,
+        image_url: item.imagem,
+        active: item.status === 'ATIVO',
+        created_at: item.criadoEm,
+        category: item.categoria,
+        engineType: item.tipoMotorizacao
+      }));
+      
+      setCars(mappedCars);
     } catch (error) {
       console.error(error);
       toast.error('Erro ao carregar carros.');
@@ -52,16 +66,11 @@ export function AdminDashboard() {
 
   const handleToggleActive = async (car: Car) => {
     try {
-      // Assuming PUT /cars/:id/activate or simple PUT update
-      // Or maybe there is a specific endpoint?
-      // "Ativação/Inativação de carros"
-      // Often PATCH /cars/:id { active: !active }
-      await api.patch(`/cars/${car.id}`, { active: !car.active });
+      await api.patch(`/cars/${car.id}/status`);
       toast.success(`Carro ${car.active ? 'inativado' : 'ativado'}.`);
       fetchCars();
     } catch (error) {
-      // Fallback: try PUT with full data if PATCH fails?
-      // No, let's assume standard PATCH or PUT.
+      console.error(error);
       toast.error('Erro ao alterar status.');
     }
   };
